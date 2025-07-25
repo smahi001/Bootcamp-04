@@ -5,8 +5,8 @@ resource "azurerm_sql_server" "sql_server" {
   version                      = "12.0" # Or latest stable version
   administrator_login          = var.admin_username
   administrator_login_password = var.admin_password
-  minimum_tls_version          = "1.2" # Recommended for security
-}
+  # minimum_tls_version          = "1.2" # <--- MAKE SURE THIS LINE IS COMMENTED OR DELETED
+} # <--- ENSURE THIS BRACE IS PRESENT FOR SQL SERVER RESOURCE
 
 resource "azurerm_sql_database" "sql_db" {
   name                = var.db_name
@@ -18,7 +18,8 @@ resource "azurerm_sql_database" "sql_db" {
   max_size_gb         = 250
   read_scale          = true # Enable read replicas for geo-replication if using Standard/Premium
   zone_redundant      = false # Set to true for availability zone redundancy if region supports it
-}
+  # sku                 = "S0" # <--- MAKE SURE THIS LINE IS COMMENTED OR DELETED
+} # <--- ENSURE THIS BRACE IS PRESENT FOR SQL DATABASE RESOURCE
 
 # If setting up geo-replication for Azure SQL DB:
 # This requires creating a secondary database and linking it.

@@ -1,3 +1,15 @@
+# multi-region-dr/main.tf
+
+terraform {
+  # This is the only block you should have inside terraform {} in main.tf
+  backend "azurerm" {
+    resource_group_name  = "tfstate-manikonda-rg-unique"
+    storage_account_name = "tfstatemanikonda01"
+    container_name       = "tfstate"
+    key                  = "multi-region-dr.tfstate"
+  }
+}
+
 provider "azurerm" {
   features {}
   subscription_id = var.subscription_id

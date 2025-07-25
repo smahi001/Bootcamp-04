@@ -1,3 +1,5 @@
+# multi-region-dr/versions.tf
+
 terraform {
   required_providers {
     azurerm = {
