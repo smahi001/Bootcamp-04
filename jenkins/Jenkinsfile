@@ -12,7 +12,7 @@ pipeline {
                 script {
                     withCredentials([azureServicePrincipal('azure-sp-creds')]) {
 
-                        // --- BEGIN: Add these export lines before terraform init ---
+                        // Terraform Init command:
                         sh """
                             export ARM_CLIENT_ID=${AZURE_CLIENT_ID}
                             export ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
@@ -25,9 +25,8 @@ pipeline {
                                 -backend-config="container_name=tfstate" \\
                                 -backend-config="key=multi-region-dr.tfstate"
                         """
-                        // --- END: Export lines for terraform init ---
 
-                        // --- BEGIN: Add these export lines before terraform plan ---
+                        // Terraform Plan command:
                         sh """
                             export ARM_CLIENT_ID=${AZURE_CLIENT_ID}
                             export ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
@@ -40,11 +39,10 @@ pipeline {
                                 -var "client_id=${AZURE_CLIENT_ID}" \\
                                 -var "client_secret=${AZURE_CLIENT_SECRET}"
                         """
-                        // --- END: Export lines for terraform plan ---
 
+                        // User input for approval before apply
                         def userInput = input(id: 'proceed', message: 'Proceed with Terraform Apply?', ok: 'Apply')
                         if (userInput == 'Apply') {
-                            // --- BEGIN: Add these export lines before terraform apply as well ---
                             sh """
                                 export ARM_CLIENT_ID=${AZURE_CLIENT_ID}
                                 export ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
@@ -52,7 +50,6 @@ pipeline {
                                 export ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}
                                 terraform apply -auto-approve tfplan
                             """
-                            // --- END: Export lines for terraform apply ---
                         } else {
                             error('Terraform apply cancelled by user.')
                         }
@@ -60,19 +57,21 @@ pipeline {
                 }
             }
         }
-
-        post {
-            always {
-                script {
-                    sh 'rm -f tfplan'
-                }
+    }
+    // The 'post' block must be here, directly under 'pipeline',
+    // at the same indentation level as 'environment' and 'stages'.
+    post {
+        always {
+            script {
+                sh 'rm -f tfplan'
             }
-            success {
-                echo 'Terraform deployment successful!'
-            }
-            failure {
-                echo 'Terraform deployment failed!'
-            }
+        }
+        success {
+            echo 'Terraform deployment successful!'
+        }
+        failure {
+            echo 'Terraform deployment failed!'
         }
     }
 }
+
