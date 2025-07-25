@@ -10,67 +10,75 @@ pipeline {
         stage('Terraform Operations') {
             steps {
                 script {
-                    withCredentials([azureServicePrincipal('azure-sp-creds')]) {
+                    // IMPORTANT: Navigate to the Terraform directory within the workspace.
+                    // Your .tf files are in 'multi-region-dr/'.
+                    dir('multi-region-dr') {
+                        withCredentials([azureServicePrincipal('azure-sp-creds')]) {
 
-                        // Terraform Init command:
-                        sh """
-                            export ARM_CLIENT_ID=${AZURE_CLIENT_ID}
-                            export ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
-                            export ARM_TENANT_ID=${AZURE_TENANT_ID}
-                            export ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}
-
-                            terraform init \\
-                                -backend-config="resource_group_name=tfstate-manikonda-rg-unique" \\
-                                -backend-config="storage_account_name=tfstatemanikonda01" \\
-                                -backend-config="container_name=tfstate" \\
-                                -backend-config="key=multi-region-dr.tfstate"
-                        """
-
-                        // Terraform Plan command:
-                        sh """
-                            export ARM_CLIENT_ID=${AZURE_CLIENT_ID}
-                            export ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
-                            export ARM_TENANT_ID=${AZURE_TENANT_ID}
-                            export ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}
-
-                            terraform plan -out=tfplan \\
-                                -var "subscription_id=${AZURE_SUBSCRIPTION_ID}" \\
-                                -var "tenant_id=${AZURE_TENANT_ID}" \\
-                                -var "client_id=${AZURE_CLIENT_ID}" \\
-                                -var "client_secret=${AZURE_CLIENT_SECRET}"
-                        """
-
-                        // User input for approval before apply
-                        def userInput = input(id: 'proceed', message: 'Proceed with Terraform Apply?', ok: 'Apply')
-                        // THIS IS THE CRITICAL LINE TO CHANGE:
-                        if (userInput) { // <--- ENSURE THIS IS 'if (userInput)' NOT 'if (userInput == "Apply")'
+                            // Terraform Init command:
                             sh """
                                 export ARM_CLIENT_ID=${AZURE_CLIENT_ID}
                                 export ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
                                 export ARM_TENANT_ID=${AZURE_TENANT_ID}
                                 export ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}
-                                terraform apply -auto-approve tfplan
+
+                                terraform init \\
+                                    -backend-config="resource_group_name=tfstate-manikonda-rg-unique" \\
+                                    -backend-config="storage_account_name=tfstatemanikonda01" \\
+                                    -backend-config="container_name=tfstate" \\
+                                    -backend-config="key=multi-region-dr.tfstate"
                             """
-                        } else {
-                            error('Terraform apply cancelled by user.')
+
+                            // Terraform Plan command:
+                            sh """
+                                export ARM_CLIENT_ID=${AZURE_CLIENT_ID}
+                                export ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+                                export ARM_TENANT_ID=${AZURE_TENANT_ID}
+                                export ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}
+
+                                terraform plan -out=tfplan \\
+                                    -var "subscription_id=${AZURE_SUBSCRIPTION_ID}" \\
+                                    -var "tenant_id=${AZURE_TENANT_ID}" \\
+                                    -var "client_id=${AZURE_CLIENT_ID}" \\
+                                    -var "client_secret=${AZURE_CLIENT_SECRET}"
+                            """
+
+                            // User input for approval before apply
+                            def userInput = input(id: 'proceed', message: 'Proceed with Terraform Apply?', ok: 'Apply')
+                            if (userInput) { // Check if the boolean 'true' was returned
+                                sh """
+                                    export ARM_CLIENT_ID=${AZURE_CLIENT_ID}
+                                    export ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+                                    export ARM_TENANT_ID=${AZURE_TENANT_ID}
+                                    export ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}
+                                    terraform apply -auto-approve tfplan
+                                """
+                            } else {
+                                error('Terraform apply cancelled by user.')
+                            }
                         }
-                    }
+                    } // Closing brace for dir('multi-region-dr')
                 }
             }
         }
-
-        post {
-            always {
-                script {
+    }
+    // The 'post' block MUST be here, directly under 'pipeline',
+    // at the same indentation level as 'environment' and 'stages'.
+    post {
+        always {
+            script {
+                // IMPORTANT: Navigate to the Terraform directory for cleanup.
+                // Your 'tfplan' file is in 'multi-region-dr/'.
+                dir('multi-region-dr') {
                     sh 'rm -f tfplan'
                 }
             }
-            success {
-                echo 'Terraform deployment successful!'
-            }
-            failure {
-                echo 'Terraform deployment failed!'
-            }
+        }
+        success {
+            echo 'Terraform deployment successful!'
+        }
+        failure {
+            echo 'Terraform deployment failed!'
         }
     }
 }
