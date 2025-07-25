@@ -1,0 +1,22 @@
+# Terraform generated files
+.terraform/
+*.tfplan
+*.tfstate
+*.tfstate.*
+# .terraform.lock.hcl # Optionally, if you don't commit it (Keep this commented or remove if you want to commit it)
+terraform.tfstate.d/
+crash.log
+.terraformrc
+.terraformignore
+
+# Crash dumps and history files
+*.backup
+.history
+*.log
+
+# macOS specific files
+.DS_Store
+
+# Windows specific files
+Thumbs.db
+ehthumbs.db
