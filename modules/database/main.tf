@@ -1,4 +1,4 @@
-resource "azurerm_sql_server" "sql_server" {
+resource "azurerm_mssql_server" "sql_server" {
   name                         = var.db_server_name
   resource_group_name          = var.resource_group_name
   location                     = var.location
@@ -12,11 +12,11 @@ resource "azurerm_sql_database" "sql_db" {
   name                = var.db_name
   resource_group_name = var.resource_group_name
   location            = var.location
-  server_name         = azurerm_sql_server.sql_server.name
+  server_name         = azurerm_mssql_server.sql_server.name
   edition             = "Standard" # Or "Basic", "Premium", "GeneralPurpose", "BusinessCritical"
   collation           = "SQL_Latin1_General_CP1_CI_AS"
   max_size_gb         = 250
-  read_scale          = true # Enable read replicas for geo-replication if using Standard/Premium
+  read_scale          = false # Enable read replicas for geo-replication if using Standard/Premium
   zone_redundant      = false # Set to true for availability zone redundancy if region supports it
   # sku                 = "S0" # <--- MAKE SURE THIS LINE IS COMMENTED OR DELETED
 } # <--- ENSURE THIS BRACE IS PRESENT FOR SQL DATABASE RESOURCE
