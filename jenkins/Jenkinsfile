@@ -1,0 +1,82 @@
+pipeline {
+    agent any
+
+    environment {
+        // Azure Service Principal credentials from Jenkins global credentials
+        // Using predefined environment variables by Azure Credentials plugin
+        AZURE_SUBSCRIPTION_ID = credentials('azure-sp-creds').subscriptionId
+        AZURE_CLIENT_ID = credentials('azure-sp-creds').clientId
+        AZURE_CLIENT_SECRET = credentials('azure-sp-creds').clientSecret
+        AZURE_TENANT_ID = credentials('azure-sp-creds').tenantId
+
+        TF_VAR_subscription_id = AZURE_SUBSCRIPTION_ID
+        TF_VAR_tenant_id = AZURE_TENANT_ID
+        TF_VAR_client_id = AZURE_CLIENT_ID
+        TF_VAR_client_secret = AZURE_CLIENT_SECRET
+        TF_VAR_admin_password = "Ap20120805877" // **IMPORTANT**: Replace with a strong, unique password!
+                                                          // In production, use Jenkins secrets or Key Vault directly.
+        TF_VAR_domain_name = "manikonda.ca"
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git url: 'https://github.com/smahi001/Bootcamp-04.git' // Replace with your Git repo URL
+                script {
+                    // Navigate to the Terraform directory
+                    dir('multi-region-dr') {
+                        sh 'ls -la' // Verify contents
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                script {
+                    dir('multi-region-dr') {
+                        sh 'terraform init -backend-config="resource_group_name=tfstate-manikonda-rg-unique" -backend-config="storage_account_name=tfstatemanikonda01" -backend-config="container_name=tfstate" -backend-config="key=multi-region-dr.tfstate"'
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                script {
+                    dir('multi-region-dr') {
+                        sh 'terraform plan -out=tfplan'
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                script {
+                    dir('multi-region-dr') {
+                        input message: 'Proceed with Terraform Apply?', ok: 'Apply'
+                        sh 'terraform apply -auto-approve tfplan'
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // Clean up any sensitive files or data
+            script {
+                dir('multi-region-dr') {
+                    sh 'rm -f tfplan'
+                }
+            }
+        }
+        success {
+            echo 'Terraform deployment successful!'
+        }
+        failure {
+            echo 'Terraform deployment failed!'
+        }
+    }
+}
