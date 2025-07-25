@@ -42,8 +42,8 @@ pipeline {
 
                         // User input for approval before apply
                         def userInput = input(id: 'proceed', message: 'Proceed with Terraform Apply?', ok: 'Apply')
-                        // Simply check if userInput is truthy (which 'true' is)
-                        if (userInput) {
+                        // THIS IS THE CRITICAL LINE TO CHANGE:
+                        if (userInput) { // <--- ENSURE THIS IS 'if (userInput)' NOT 'if (userInput == "Apply")'
                             sh """
                                 export ARM_CLIENT_ID=${AZURE_CLIENT_ID}
                                 export ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
@@ -52,27 +52,25 @@ pipeline {
                                 terraform apply -auto-approve tfplan
                             """
                         } else {
-                            // This else block should now only be hit if the user explicitly aborts
                             error('Terraform apply cancelled by user.')
                         }
                     }
                 }
             }
         }
-    }
-    // The 'post' block must be here, directly under 'pipeline',
-    // at the same indentation level as 'environment' and 'stages'.
-    post {
-        always {
-            script {
-                sh 'rm -f tfplan'
+
+        post {
+            always {
+                script {
+                    sh 'rm -f tfplan'
+                }
             }
-        }
-        success {
-            echo 'Terraform deployment successful!'
-        }
-        failure {
-            echo 'Terraform deployment failed!'
+            success {
+                echo 'Terraform deployment successful!'
+            }
+            failure {
+                echo 'Terraform deployment failed!'
+            }
         }
     }
 }
