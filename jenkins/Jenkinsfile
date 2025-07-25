@@ -1,43 +1,60 @@
 pipeline {
-        agent any
+    agent any
 
-        environment {
-            TF_VAR_admin_password = "Ap20120805877"
-            TF_VAR_domain_name    = "manikonda.ca"
-        }
+    environment {
+        TF_VAR_admin_password = "Ap20120805877"
+        TF_VAR_domain_name    = "manikonda.ca"
+    }
 
-        stages {
-            stage('Terraform Operations') {
-                steps {
-                    script {
-                        // Terraform commands will now run directly in the Jenkins workspace root.
-                        withCredentials([azureServicePrincipal('azure-sp-creds')]) {
+    stages {
+        stage('Terraform Operations') {
+            steps {
+                script {
+                    withCredentials([azureServicePrincipal('azure-sp-creds')]) {
 
-                            // Terraform Init command:
+                        // --- BEGIN: Add these export lines before terraform init ---
+                        sh """
+                            export ARM_CLIENT_ID=${AZURE_CLIENT_ID}
+                            export ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+                            export ARM_TENANT_ID=${AZURE_TENANT_ID}
+                            export ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}
+
+                            terraform init \\
+                                -backend-config="resource_group_name=tfstate-manikonda-rg-unique" \\
+                                -backend-config="storage_account_name=tfstatemanikonda01" \\
+                                -backend-config="container_name=tfstate" \\
+                                -backend-config="key=multi-region-dr.tfstate"
+                        """
+                        // --- END: Export lines for terraform init ---
+
+                        // --- BEGIN: Add these export lines before terraform plan ---
+                        sh """
+                            export ARM_CLIENT_ID=${AZURE_CLIENT_ID}
+                            export ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+                            export ARM_TENANT_ID=${AZURE_TENANT_ID}
+                            export ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}
+
+                            terraform plan -out=tfplan \\
+                                -var "subscription_id=${AZURE_SUBSCRIPTION_ID}" \\
+                                -var "tenant_id=${AZURE_TENANT_ID}" \\
+                                -var "client_id=${AZURE_CLIENT_ID}" \\
+                                -var "client_secret=${AZURE_CLIENT_SECRET}"
+                        """
+                        // --- END: Export lines for terraform plan ---
+
+                        def userInput = input(id: 'proceed', message: 'Proceed with Terraform Apply?', ok: 'Apply')
+                        if (userInput == 'Apply') {
+                            // --- BEGIN: Add these export lines before terraform apply as well ---
                             sh """
-                                terraform init \\
-                                    -backend-config="resource_group_name=tfstate-manikonda-rg-unique" \\
-                                    -backend-config="storage_account_name=tfstatemanikonda01" \\
-                                    -backend-config="container_name=tfstate" \\
-                                    -backend-config="key=multi-region-dr.tfstate"
+                                export ARM_CLIENT_ID=${AZURE_CLIENT_ID}
+                                export ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+                                export ARM_TENANT_ID=${AZURE_TENANT_ID}
+                                export ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}
+                                terraform apply -auto-approve tfplan
                             """
-
-                            // Terraform Plan command:
-                            sh """
-                                terraform plan -out=tfplan \\
-                                    -var "subscription_id=${AZURE_SUBSCRIPTION_ID}" \\
-                                    -var "tenant_id=${AZURE_TENANT_ID}" \\
-                                    -var "client_id=${AZURE_CLIENT_ID}" \\
-                                    -var "client_secret=${AZURE_CLIENT_SECRET}"
-                            """
-
-                            // User input for approval before apply
-                            def userInput = input(id: 'proceed', message: 'Proceed with Terraform Apply?', ok: 'Apply')
-                            if (userInput == 'Apply') {
-                                sh 'terraform apply -auto-approve tfplan'
-                            } else {
-                                error('Terraform apply cancelled by user.')
-                            }
+                            // --- END: Export lines for terraform apply ---
+                        } else {
+                            error('Terraform apply cancelled by user.')
                         }
                     }
                 }
@@ -58,4 +75,4 @@ pipeline {
             }
         }
     }
-    
+}
