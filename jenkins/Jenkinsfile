@@ -56,25 +56,11 @@ pipeline {
                                     -var "client_id=${AZURE_CLIENT_ID}" \\
                                     -var "client_secret=${AZURE_CLIENT_SECRET}"
                             """
-                        } // End of withEnv for Terraform Plan/Init
 
-                        // User Input: Pause the pipeline and wait for manual approval before applying changes.
-                        // The 'input' step returns 'true' (boolean) if 'ok' button is clicked, or throws an exception if 'abort' is clicked.
-                        def userInput = input(id: 'proceed', message: 'Proceed with Terraform Apply?', ok: 'Apply')
-
-                        // Conditional Apply: Only proceed with apply if the user approved.
-                        if (userInput) { // Check if the boolean 'true' was returned
-                            withEnv([
-                                "ARM_CLIENT_ID=${AZURE_CLIENT_ID}",
-                                "ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}",
-                                "ARM_TENANT_ID=${AZURE_TENANT_ID}",
-                                "ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}"
-                            ]) {
-                                sh 'terraform apply -auto-approve tfplan'
-                            }
-                        } else {
-                            error('Terraform apply cancelled by user.')
-                        }
+                            // Terraform Apply: Automatically applies the changes defined in the 'tfplan' file.
+                            // The manual approval step has been removed for auto-approval.
+                            sh 'terraform apply -auto-approve tfplan'
+                        } // End of withEnv for Terraform commands
                     } // End of withCredentials
                 } // End of script
             } // End of steps
