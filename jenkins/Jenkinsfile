@@ -19,65 +19,64 @@ pipeline {
         stage('Terraform Operations') {
             steps {
                 script {
-                    // IMPORTANT: Navigate to the Terraform directory within the workspace.
-                    // Your .tf files are in 'multi-region-dr/'.
-                    dir('multi-region-dr') {
-                        withCredentials([azureServicePrincipal('azure-sp-creds')]) {
+                    // IMPORTANT: Removed 'dir('multi-region-dr')' because your .tf files
+                    // are at the root of the checked-out repository.
+                    withCredentials([azureServicePrincipal('azure-sp-creds')]) {
 
-                            // Recommended Fix 3: Use withEnv for secrets to avoid Groovy string interpolation warning
-                            withEnv([
-                                "ARM_CLIENT_ID=${AZURE_CLIENT_ID}",
-                                "ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}",
-                                "ARM_TENANT_ID=${AZURE_TENANT_ID}",
-                                "ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}"
-                            ]) {
-                                // Recommended Fix 2: Optional debug command to list directory contents
-                                sh 'ls -la'
+                        // Recommended Fix 3: Use withEnv for secrets to avoid Groovy string interpolation warning
+                        withEnv([
+                            "ARM_CLIENT_ID=${AZURE_CLIENT_ID}",
+                            "ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}",
+                            "ARM_TENANT_ID=${AZURE_TENANT_ID}",
+                            "ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}"
+                        ]) {
+                            // Recommended Fix 2: Optional debug command to list directory contents
+                            // This will now list files at the root of the workspace
+                            sh 'ls -la'
 
-                                // Terraform Init command:
-                                sh """
-                                    terraform init \\
-                                        -backend-config="resource_group_name=tfstate-manikonda-rg-unique" \\
-                                        -backend-config="storage_account_name=tfstatemanikonda01" \\
-                                        -backend-config="container_name=tfstate" \\
-                                        -backend-config="key=multi-region-dr.tfstate"
-                                """
-                            }
-
-                            // Recommended Fix 3: Use withEnv for secrets in Terraform Plan
-                            withEnv([
-                                "ARM_CLIENT_ID=${AZURE_CLIENT_ID}",
-                                "ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}",
-                                "ARM_TENANT_ID=${AZURE_TENANT_ID}",
-                                "ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}"
-                            ]) {
-                                // Terraform Plan command:
-                                sh """
-                                    terraform plan -out=tfplan \\
-                                        -var "subscription_id=${AZURE_SUBSCRIPTION_ID}" \\
-                                        -var "tenant_id=${AZURE_TENANT_ID}" \\
-                                        -var "client_id=${AZURE_CLIENT_ID}" \\
-                                        -var "client_secret=${AZURE_CLIENT_SECRET}"
-                                """
-                            }
-
-                            // User input for approval before apply
-                            def userInput = input(id: 'proceed', message: 'Proceed with Terraform Apply?', ok: 'Apply')
-                            if (userInput) { // Check if the boolean 'true' was returned
-                                // Recommended Fix 3: Use withEnv for secrets in Terraform Apply
-                                withEnv([
-                                    "ARM_CLIENT_ID=${AZURE_CLIENT_ID}",
-                                    "ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}",
-                                    "ARM_TENANT_ID=${AZURE_TENANT_ID}",
-                                    "ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}"
-                                ]) {
-                                    sh 'terraform apply -auto-approve tfplan'
-                                }
-                            } else {
-                                error('Terraform apply cancelled by user.')
-                            }
+                            // Terraform Init command:
+                            sh """
+                                terraform init \\
+                                    -backend-config="resource_group_name=tfstate-manikonda-rg-unique" \\
+                                    -backend-config="storage_account_name=tfstatemanikonda01" \\
+                                    -backend-config="container_name=tfstate" \\
+                                    -backend-config="key=multi-region-dr.tfstate"
+                            """
                         }
-                    } // Closing brace for dir('multi-region-dr')
+
+                        // Recommended Fix 3: Use withEnv for secrets in Terraform Plan
+                        withEnv([
+                            "ARM_CLIENT_ID=${AZURE_CLIENT_ID}",
+                            "ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}",
+                            "ARM_TENANT_ID=${AZURE_TENANT_ID}",
+                            "ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}"
+                        ]) {
+                            // Terraform Plan command:
+                            sh """
+                                terraform plan -out=tfplan \\
+                                    -var "subscription_id=${AZURE_SUBSCRIPTION_ID}" \\
+                                    -var "tenant_id=${AZURE_TENANT_ID}" \\
+                                    -var "client_id=${AZURE_CLIENT_ID}" \\
+                                    -var "client_secret=${AZURE_CLIENT_SECRET}"
+                            """
+                        }
+
+                        // User input for approval before apply
+                        def userInput = input(id: 'proceed', message: 'Proceed with Terraform Apply?', ok: 'Apply')
+                        if (userInput) { // Check if the boolean 'true' was returned
+                            // Recommended Fix 3: Use withEnv for secrets in Terraform Apply
+                            withEnv([
+                                "ARM_CLIENT_ID=${AZURE_CLIENT_ID}",
+                                "ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}",
+                                "ARM_TENANT_ID=${AZURE_TENANT_ID}",
+                                "ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}"
+                            ]) {
+                                sh 'terraform apply -auto-approve tfplan'
+                            }
+                        } else {
+                            error('Terraform apply cancelled by user.')
+                        }
+                    }
                 }
             }
         }
@@ -87,11 +86,8 @@ pipeline {
     post {
         always {
             script {
-                // IMPORTANT: Navigate to the Terraform directory for cleanup.
-                // Your 'tfplan' file is in 'multi-region-dr/'.
-                dir('multi-region-dr') {
-                    sh 'rm -f tfplan'
-                }
+                // IMPORTANT: Removed 'dir('multi-region-dr')' for cleanup as tfplan is at root.
+                sh 'rm -f tfplan'
             }
         }
         success {
