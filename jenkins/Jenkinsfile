@@ -1,40 +1,44 @@
 pipeline {
     agent any
 
+    // Define global environment variables for sensitive data.
+    // In a production scenario, these would ideally come from a secure secret store (e.g., Azure Key Vault).
     environment {
-        TF_VAR_admin_password = "Ap20120805877"
+        TF_VAR_admin_password = "Ap20120805877" // !! IMPORTANT: Ensure this is your actual strong password !!
         TF_VAR_domain_name    = "manikonda.ca"
     }
 
     stages {
-        // Recommended Fix 1: Add an explicit Checkout stage
+        // Stage 1: Explicitly check out the source code
+        // This ensures the workspace is populated with the latest code from Git.
         stage('Checkout SCM') {
             steps {
-                // This ensures Jenkins explicitly checks out the repository content
-                // into the workspace before any other operations.
                 checkout scm
             }
         }
 
+        // Stage 2: Perform Terraform operations (init, plan, apply)
         stage('Terraform Operations') {
             steps {
                 script {
-                    // IMPORTANT: Removed 'dir('multi-region-dr')' because your .tf files
-                    // are at the root of the checked-out repository.
+                    // Use withCredentials to inject Azure Service Principal credentials as environment variables.
+                    // The 'azure-sp-creds' ID must match the ID configured in Jenkins Credentials.
                     withCredentials([azureServicePrincipal('azure-sp-creds')]) {
 
-                        // Recommended Fix 3: Use withEnv for secrets to avoid Groovy string interpolation warning
+                        // Use withEnv to securely pass ARM_ prefixed environment variables to Terraform.
+                        // This avoids Groovy string interpolation warnings and ensures Terraform authenticates correctly.
                         withEnv([
                             "ARM_CLIENT_ID=${AZURE_CLIENT_ID}",
                             "ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}",
                             "ARM_TENANT_ID=${AZURE_TENANT_ID}",
                             "ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}"
                         ]) {
-                            // Recommended Fix 2: Optional debug command to list directory contents
-                            // This will now list files at the root of the workspace
+                            // Debugging step: List contents of the current directory.
+                            // This helps verify that Terraform configuration files are present.
+                            // Your .tf files are at the root of the checked-out repository.
                             sh 'ls -la'
 
-                            // Terraform Init command:
+                            // Terraform Init: Initializes the working directory, downloads providers, and sets up the backend.
                             sh """
                                 terraform init \\
                                     -backend-config="resource_group_name=tfstate-manikonda-rg-unique" \\
@@ -42,16 +46,9 @@ pipeline {
                                     -backend-config="container_name=tfstate" \\
                                     -backend-config="key=multi-region-dr.tfstate"
                             """
-                        }
 
-                        // Recommended Fix 3: Use withEnv for secrets in Terraform Plan
-                        withEnv([
-                            "ARM_CLIENT_ID=${AZURE_CLIENT_ID}",
-                            "ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}",
-                            "ARM_TENANT_ID=${AZURE_TENANT_ID}",
-                            "ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}"
-                        ]) {
-                            // Terraform Plan command:
+                            // Terraform Plan: Creates an execution plan, showing what changes will be made.
+                            // The plan is saved to 'tfplan' file for the apply step.
                             sh """
                                 terraform plan -out=tfplan \\
                                     -var "subscription_id=${AZURE_SUBSCRIPTION_ID}" \\
@@ -59,12 +56,14 @@ pipeline {
                                     -var "client_id=${AZURE_CLIENT_ID}" \\
                                     -var "client_secret=${AZURE_CLIENT_SECRET}"
                             """
-                        }
+                        } // End of withEnv for Terraform Plan/Init
 
-                        // User input for approval before apply
+                        // User Input: Pause the pipeline and wait for manual approval before applying changes.
+                        // The 'input' step returns 'true' (boolean) if 'ok' button is clicked, or throws an exception if 'abort' is clicked.
                         def userInput = input(id: 'proceed', message: 'Proceed with Terraform Apply?', ok: 'Apply')
+
+                        // Conditional Apply: Only proceed with apply if the user approved.
                         if (userInput) { // Check if the boolean 'true' was returned
-                            // Recommended Fix 3: Use withEnv for secrets in Terraform Apply
                             withEnv([
                                 "ARM_CLIENT_ID=${AZURE_CLIENT_ID}",
                                 "ARM_CLIENT_SECRET=${AZURE_CLIENT_SECRET}",
@@ -76,17 +75,18 @@ pipeline {
                         } else {
                             error('Terraform apply cancelled by user.')
                         }
-                    }
-                }
-            }
-        }
-    }
-    // The 'post' block MUST be here, directly under 'pipeline',
-    // at the same indentation level as 'environment' and 'stages'.
+                    } // End of withCredentials
+                } // End of script
+            } // End of steps
+        } // End of stage 'Terraform Operations'
+    } // End of stages
+
+    // Post Actions: Define actions to run after the main stages complete, regardless of success or failure.
+    // This 'post' block must be a direct child of the 'pipeline' block.
     post {
         always {
             script {
-                // IMPORTANT: Removed 'dir('multi-region-dr')' for cleanup as tfplan is at root.
+                // Cleanup: Remove the generated tfplan file.
                 sh 'rm -f tfplan'
             }
         }
